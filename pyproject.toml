@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "risk-engine"
+version = "4.0.0"
+description = "Pure Python Options Pricing & Portfolio Risk Analysis"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Quant Enthusiasts"}
+]
+
+dependencies = [
+    "numpy>=1.24.0",
+    "scipy>=1.11.0",
+    "numba>=0.58.0",
+    "yfinance>=0.2.28",
+    "streamlit>=1.32.0",
+    "plotly>=5.18.0",
+    "pandas>=2.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["risk_engine*"]
+
+[tool.setuptools.package-data]
+risk_engine = ["**/*.py"]

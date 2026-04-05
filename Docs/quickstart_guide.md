@@ -1,265 +1,115 @@
 # Quick Start Guide
 
-Get the Quant Enthusiasts Risk Engine running in under 10 minutes.
+Get the Quant Enthusiasts Risk Engine running in under 5 minutes.
 
-## Prerequisites Check
+## Prerequisites
 
-Verify you have the required tools:
+- Python 3.11+
 
-```bash
-# Check versions
-python3 --version    # Need 3.11+
-cmake --version      # Need 3.25+
-g++ --version        # Need 7+ (or clang 5+)
-```
+## Quick Setup
 
-If any are missing, see [INSTALLATION.md](INSTALLATION.md) for setup instructions.
-
-## 5-Minute Setup
-
-### 1. Clone and Build (3 minutes)
+### 1. Install Dependencies
 
 ```bash
 # Clone repository
 git clone https://github.com/Quant-Enthusiasts/Quant-Enthusiasts-Risk-Engine.git
 cd Quant-Enthusiasts-Risk-Engine
 
-# Build C++ engine
-cd cpp_engine
-mkdir build && cd build
-cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
-cmake --build .
-cmake --install .
-cd ../..
-```
-
-### 2. Setup Python API (2 minutes)
-
-```bash
 # Create virtual environment
-cd python_api
-python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-python setup.py build_ext --inplace
+
+# Install package in editable mode
+pip install -e .
 ```
 
-### 3. Start Server
+### 2. Run the Dashboard
 
 ```bash
-# Set module path
-export PYTHONPATH="../cpp_engine/install/lib:$PYTHONPATH"
-
-# Start API
-python app.py
+streamlit run dashboard/app.py
 ```
 
-Server is now running at `http://127.0.0.1:5000`
+Dashboard is now running at `http://localhost:8501`
 
 ## Test Your Installation
 
-Open a new terminal and run:
+```python
+from risk_engine import (
+    EuropeanOption,
+    Portfolio,
+    RiskEngine,
+    MarketData,
+    OptionType,
+    PricingModel,
+)
 
-```bash
-# Health check
-curl http://127.0.0.1:5000/health
+# Create an option
+option = EuropeanOption(
+    OptionType.CALL,
+    strike=180.0,
+    time_to_expiry=1.0,
+    asset_id="AAPL",
+    pricing_model=PricingModel.BLACKSCHOLES
+)
 
-# Price an option
-curl -X POST http://127.0.0.1:5000/price_option \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "call",
-    "strike": 100,
-    "expiry": 1.0,
-    "asset_id": "AAPL",
-    "style": "european",
-    "market_data": {
-      "spot": 105,
-      "rate": 0.05,
-      "vol": 0.25
-    }
-  }'
+# Create market data
+md = MarketData(
+    asset_id="AAPL",
+    spot=175.0,
+    rate=0.05,
+    vol=0.25
+)
+
+# Price the option
+price = option.price(md)
+print(f"Option price: ${price:.2f}")
+
+# Build portfolio and calculate risk
+portfolio = Portfolio()
+portfolio.add_instrument(option, quantity=100)
+
+engine = RiskEngine(var_simulations=10000)
+result = engine.calculate_portfolio_risk(portfolio, {"AAPL": md})
+
+print(f"Total PV: ${result.total_pv:,.2f}")
+print(f"VaR 95%: ${result.value_at_risk_95:,.2f}")
 ```
 
-Expected output:
-```json
-{
-  "price": 12.34,
-  "delta": 0.6368,
-  "gamma": 0.0178,
-  "vega": 37.45,
-  "theta": -6.42
-}
+## Dashboard Features
+
+The Streamlit dashboard provides:
+
+1. **Portfolio Builder** - Add European/American options with various pricing models
+2. **Risk Analysis** - View Greeks, VaR, Expected Shortfall with live market data
+3. **Market Data** - Fetch data from Yahoo Finance with historical charts
+4. **Visualizations** - Option payoff diagrams and Greeks exposure
+5. **Greeks Analysis** - Delta/Gamma/Vega heatmaps and 3D IV surface
+
+## Common Issues
+
+### "ModuleNotFoundError: risk_engine"
+
+**Fix**: Install the package in editable mode
+```bash
+pip install -e .
 ```
 
-## Common First-Time Issues
+### "yfinance not installed"
 
-### "ModuleNotFoundError: quant_risk_engine"
-
-**Fix**: Set PYTHONPATH before running Flask
+**Fix**: Install yfinance
 ```bash
-export PYTHONPATH="$PWD/../cpp_engine/install/lib:$PYTHONPATH"
-```
-
-### "Port 5000 already in use" (macOS)
-
-**Fix**: Use alternative port
-```bash
-python -m flask --app app run --port 5050
-```
-
-### "Permission denied: build.sh"
-
-**Fix**: Make script executable
-```bash
-chmod +x cpp_engine/build.sh
-```
-
-## Quick Examples
-
-### Example 1: Fetch Live Market Data
-
-```bash
-curl -X POST http://127.0.0.1:5000/update_market_data \
-  -H "Content-Type: application/json" \
-  -d '{"tickers": ["AAPL", "GOOGL"]}'
-```
-
-### Example 2: Calculate Portfolio Risk
-
-```bash
-curl -X POST http://127.0.0.1:5000/calculate_risk \
-  -H "Content-Type: application/json" \
-  -d '{
-    "portfolio": [
-      {
-        "type": "call",
-        "strike": 180,
-        "expiry": 1.0,
-        "asset_id": "AAPL",
-        "quantity": 100,
-        "style": "european"
-      }
-    ],
-    "market_data": {},
-    "var_parameters": {
-      "simulations": 10000,
-      "confidence": 0.95
-    }
-  }'
-```
-
-### Example 3: Use the Dashboard
-
-```bash
-# In a new terminal
-cd js_dashboard
-npx serve .
-# Open http://localhost:3000 in browser
+pip install yfinance
 ```
 
 ## Next Steps
 
-### Learn More
-
-- **API Reference**: See [API.md](API.md) for all endpoints
-- **Market Data**: Read [MARKET_DATA.md](MARKET_DATA.md) for YFinance integration
-- **Development**: Check [DEVELOPMENT.md](DEVELOPMENT.md) to contribute
-
-### Try These Features
-
-1. **American Options**: Set `"style": "american"` in request
-2. **Jump Diffusion**: Use `"pricing_model": "jumpdiffusion"`
-3. **VaR Calculation**: Add `"var_parameters"` to risk request
-4. **Greeks**: All option pricing returns full Greeks
-
-### Common Workflows
-
-**Daily Portfolio Risk Check**:
-```bash
-# 1. Update market data
-curl -X POST http://localhost:5000/update_market_data \
-  -d '{"tickers": ["AAPL", "GOOGL", "MSFT"]}'
-
-# 2. Calculate risk (auto-uses cached data)
-curl -X POST http://localhost:5000/calculate_risk \
-  -d '{"portfolio": [...], "market_data": {}}'
-```
-
-**Compare Pricing Models**:
-```bash
-# Black-Scholes
-curl -X POST http://localhost:5000/price_option \
-  -d '{..., "pricing_model": "blackscholes"}'
-
-# Binomial Tree
-curl -X POST http://localhost:5000/price_option \
-  -d '{..., "pricing_model": "binomial", "binomial_steps": 1000}'
-
-# Jump Diffusion
-curl -X POST http://localhost:5000/price_option \
-  -d '{..., "pricing_model": "jumpdiffusion", "jump_parameters": {...}}'
-```
-
-## Troubleshooting
-
-### Build Fails
-
-**Clean and rebuild**:
-```bash
-cd cpp_engine
-rm -rf build install
-mkdir build && cd build
-cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
-cmake --build .
-cmake --install .
-```
-
-### Python Module Not Found
-
-**Verify build output**:
-```bash
-ls -la cpp_engine/install/lib/
-# Should see: quant_risk_engine.cpython-*.so
-```
-
-### API Returns Errors
-
-**Check logs**:
-```bash
-# Start Flask in debug mode
-python -m flask --app app run --debug
-```
-
-## Getting Help
-
-- **Documentation**: Check [INSTALLATION.md](INSTALLATION.md) for detailed setup
-- **GitHub Issues**: [Report problems](https://github.com/Quant-Enthusiasts/Quant-Enthusiasts-Risk-Engine/issues)
-- **Discord**: [Join community](https://discord.com/invite/z3S9Fguzw3)
-
-## Development Setup
-
-If you want to contribute:
-
-```bash
-# Install development dependencies
-cd python_api
-pip install -r requirements-dev.txt
-
-# Run tests
-cd ../cpp_engine/build
-ctest --output-on-failure
-
-cd ../../python_api
-pytest test_market_data.py -v
-```
-
-See [DEVELOPMENT.md](DEVELOPMENT.md) for complete development guide.
+- **API Reference**: See [api_reference.md](api_reference.md) for REST API docs
+- **Market Data**: Read [market_data_guide.md](market_data_guide.md) for YFinance integration
+- **Development**: Check [development_guide.md](development_guide.md) to contribute
 
 ---
 
 **Setup complete!** You now have a working quantitative finance risk engine.
-
-Ready to build something? Start with the [API Reference](API.md) or join our [Discord community](https://discord.com/invite/z3S9Fguzw3).

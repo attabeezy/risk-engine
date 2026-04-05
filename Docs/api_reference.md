@@ -47,7 +47,7 @@ GET /health
 {
   "status": "healthy",
   "service": "quant-risk-engine",
-  "version": "3.1",
+  "version": "4.0.0",
   "features": [
     "european_options",
     "american_options",

@@ -1,91 +1,62 @@
 # Quant Enthusiasts Risk Engine
 
-A high-performance quantitative finance platform for portfolio risk management and options pricing. Built with C++17 core, Python bindings, and an interactive web dashboard.
+A high-performance pure Python quantitative finance platform for portfolio risk management and options pricing.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![C++17](https://img.shields.io/badge/C++-17-00599C?logo=cplusplus)](https://isocpp.org/)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 
 ## Overview
 
-Cross-language quantitative finance platform offering:
+Pure Python quantitative finance platform offering:
 
 - **Multiple Pricing Models**: Black-Scholes, Binomial Tree, Merton Jump Diffusion
-- **Risk Analytics**: Greeks calculation, Value at Risk (Monte Carlo), Portfolio aggregation
-- **Live Market Data**: Automatic fetching from Yahoo Finance with caching
-- **RESTful API**: Flask-based endpoints with comprehensive validation
-- **Web Dashboard**: Interactive portfolio builder and risk visualizer
+- **Exotic Options**: Barrier and Asian options via Monte Carlo simulation
+- **Risk Analytics**: Greeks calculation, Value at Risk (Monte Carlo with Numba), Portfolio aggregation
+- **Live Market Data**: Automatic fetching from Yahoo Finance with SQLite caching
+- **Web Dashboard**: Interactive Streamlit-based portfolio builder and risk visualizer
 
 ## Quick Start
 
 ```bash
-# Clone repository
-git clone https://github.com/Quant-Enthusiasts/Quant-Enthusiasts-Risk-Engine.git
-cd Quant-Enthusiasts-Risk-Engine
-
-# Build C++ engine
-cd cpp_engine
-mkdir build && cd build
-cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
-cmake --build .
-cmake --install .
-
-# (Optional) Use CMake presets
-# Presets are defined under cpp_engine/. Run them from this folder, e.g.
-# cmake --preset quantlib
-
-# Setup Python API
-cd ../../python_api
-python3 -m venv venv
-source venv/bin/activate
+# Install dependencies
 pip install -r requirements.txt
-python setup.py build_ext --inplace
 
-# Start API server
-python app.py
+# Install the package in editable mode (required for imports)
+pip install -e .
+
+# Run the Streamlit dashboard
+streamlit run dashboard/app.py
 ```
 
-Server runs at `http://127.0.0.1:5000`
-
-For detailed setup instructions, see [INSTALLATION.md](Docs/INSTALLATION.md).
+Server runs at `http://localhost:8501`
 
 ## Architecture
 
 ```
-JavaScript Dashboard (Frontend)
-         |
-         | HTTP/JSON
-         v
-  Python API Layer (Flask)
-         |
-         | pybind11
-         v
-   C++ Risk Engine (Core)
-```
-
-**Project Structure:**
-```
-Quant-Enthusiasts-Risk-Engine/
-├── cpp_engine/          # C++ core with pricing models
-├── python_api/          # Flask API + Python bindings
-├── js_dashboard/        # Web interface
-└── docs/                # Additional documentation
+Streamlit Dashboard
+        |
+        | (direct Python calls)
+        v
+  risk_engine/          # Core Python package
+  ├── core/             # Pricing models (BS, Binomial, Jump Diffusion)
+  ├── instruments/      # Option classes
+  ├── portfolio/        # Risk engine with Numba VaR
+  └── market_data/      # YFinance fetcher + SQLite cache
 ```
 
 ## Core Features
-
-### Pricing Models
 
 | Model | Type | Options | Key Features |
 |-------|------|---------|--------------|
 | Black-Scholes | Analytical | European | Fast, Greeks calculation |
 | Binomial Tree | Numerical | European/American | Early exercise, configurable steps |
 | Merton Jump Diffusion | Analytical | European | Discontinuous jumps |
+| QuantLib | Monte Carlo | Barrier/Asian | Exotic options |
 
 ### Risk Metrics
 
 - **Greeks**: Delta, Gamma, Vega, Theta, Rho
-- **VaR**: Monte Carlo simulation (configurable paths), std::thread used for concurrency 
+- **VaR**: Monte Carlo simulation with Numba JIT acceleration
 - **Expected Shortfall**: 95%/99% confidence levels
 - **Portfolio Analytics**: Net positions, PV aggregation
 
@@ -93,73 +64,87 @@ Quant-Enthusiasts-Risk-Engine/
 
 - Automatic fetching from Yahoo Finance
 - SQLite-based caching (24-hour expiration)
-- Bulk ticker updates
 - Volatility calculation from historical data
-
-See [MARKET_DATA.md](Docs/market_data_guide.md) for details.
 
 ## Usage Example
 
-```bash
-# Fetch market data
-curl -X POST http://127.0.0.1:5000/update_market_data \
-  -H "Content-Type: application/json" \
-  -d '{"tickers": ["AAPL", "GOOGL"]}'
+```python
+from risk_engine import (
+    EuropeanOption,
+    Portfolio,
+    RiskEngine,
+    MarketData,
+    OptionType,
+    PricingModel,
+)
 
-# Calculate portfolio risk (auto-fetches missing data)
-curl -X POST http://127.0.0.1:5000/calculate_risk \
-  -H "Content-Type: application/json" \
-  -d '{
-    "portfolio": [
-      {
-        "type": "call",
-        "strike": 180,
-        "expiry": 1.0,
-        "asset_id": "AAPL",
-        "quantity": 100,
-        "style": "european"
-      }
-    ],
-    "market_data": {}
-  }'
+# Create an option
+option = EuropeanOption(
+    OptionType.CALL,
+    strike=180.0,
+    time_to_expiry=1.0,
+    asset_id="AAPL",
+    pricing_model=PricingModel.BLACKSCHOLES
+)
+
+# Create market data
+md = MarketData(
+    asset_id="AAPL",
+    spot=175.0,
+    rate=0.05,
+    vol=0.25
+)
+
+# Price the option
+price = option.price(md)
+print(f"Option price: ${price:.2f}")
+
+# Build portfolio and calculate risk
+portfolio = Portfolio()
+portfolio.add_instrument(option, quantity=100)
+
+engine = RiskEngine(var_simulations=10000)
+result = engine.calculate_portfolio_risk(portfolio, {"AAPL": md})
+
+print(f"Total PV: ${result.total_pv:,.2f}")
+print(f"VaR 95%: ${result.value_at_risk_95:,.2f}")
 ```
 
-Full API documentation: [API.md](Docs/api_reference.md)
+## Dashboard
 
-## Performance
+The Streamlit dashboard provides:
 
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| Single option pricing | < 1 microsecond | Black-Scholes |
-| Portfolio (100 options) | < 1 ms | Full Greeks |
-| VaR (100K simulations) | < 1 s | 95% confidence |
+1. **Portfolio Builder** - Add European/American options with various pricing models, view portfolio allocation
+2. **Risk Analysis** - View Greeks, VaR, Expected Shortfall with auto-fetch market data
+3. **Market Data** - Fetch live stock data from Yahoo Finance with historical price charts
+4. **Visualizations** - Option payoff diagrams and Greeks exposure charts
+5. **Greeks Analysis** - Delta/Gamma/Vega heatmaps and 3D implied volatility surface
 
-## Documentation
+Run with:
+```bash
+streamlit run dashboard/app.py
+```
 
-- [Installation Guide](Docs/INSTALLATION.md) - Detailed setup for all platforms
-- [API Reference](Docs/api_reference.md) - Complete endpoint documentation
-- [Development Guide](Docs/development_guide.md) - Testing, contributing, CI/CD
-- [Market Data Guide](Docs/market_data_guide.md) - YFinance integration details
-- [Deployment Guide](Docs/deployment_guide.md) - Docker, production setup
+## Testing
 
-## Contributing
+```bash
+pip install -r requirements-dev.txt
+pytest tests/ -v
+```
 
-We welcome contributions! Please see [DEVELOPMENT.md](Docs/development_guide.md) for:
+## Dependencies
 
-- Development setup
-- Code style guidelines
-- Testing requirements
-- Pull request process
-
-## Support
-
-- **GitHub Issues**: [Report bugs or request features](https://github.com/Quant-Enthusiasts/Quant-Enthusiasts-Risk-Engine/issues)
-- **Discord**: [Join our community](https://discord.com/invite/z3S9Fguzw3)
+- **numpy**, **scipy** - Numerical computing
+- **numba** - JIT compilation for Monte Carlo VaR
+- **QuantLib-Python** - Exotic option pricing
+- **yfinance** - Market data fetching
+- **streamlit** - Web dashboard
+- **plotly** - Interactive charts
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+MIT License - See [LICENSE](LICENSE) for details.
 
 ---
 
-**Made by Quant Enthusiasts** | [Documentation](docs/) | [GitHub](https://github.com/Quant-Enthusiasts)
+**Made by Quant Enthusiasts**
