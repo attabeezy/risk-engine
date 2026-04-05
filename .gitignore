@@ -1,59 +1,35 @@
-# Python/Virtual Environment
-.python-version
-.venv
-venv
-env
-__pycache__
+# Python
+__pycache__/
 *.pyc
+*.pyo
 *.pyd
-*.so
-dist
-build
-.eggs
-*.egg-info
-htmlcov
+.python-version
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Testing/Coverage
+.pytest_cache/
+htmlcov/
 .coverage
-.tox
+.tox/
 
-# PyBind/C++ Build Artifacts
-*.o
-*.obj
-*.exe
-*.dll
-*.lib
-*.exp
-*.ilk
-*.pdb
-CMakeCache.txt
-CMakeFiles
-cmake_install.cmake
-Makefile
-CTestTestfile.cmake
-Testing
-_skbuild
-build_cpp
-cpp_engine\build
-/python_api/build
-/python_api/dist
-/python_api/quant_risk_engine.egg-info
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# macOS
+# OS
 .DS_Store
-
-# Windows
 Thumbs.db
-ehthumbs.db
 desktop.ini
 
-# VS Code/IDE
-.vscode
-.idea
-
-# Flask/Runtime
-.flaskenv
-
-install
-build
-build_*
-
-.cache
+# Project specific
+*.db
+.cache/
+.ruff_cache/

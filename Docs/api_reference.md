@@ -1,546 +1,286 @@
 # API Reference
 
-Complete REST API documentation for the Quant Enthusiasts Risk Engine.
+Python API documentation for the Risk Engine.
 
-## Base URL
+## Core Pricing Models
 
+### Black-Scholes
+
+```python
+from risk_engine.core.black_scholes import black_scholes_price, black_scholes_greeks
+
+# Price a call option
+price = black_scholes_price(
+    spot=100.0,      # Current stock price
+    strike=100.0,    # Strike price
+    rate=0.05,       # Risk-free rate (5%)
+    vol=0.20,        # Volatility (20%)
+    expiry=1.0,      # Time to expiry (years)
+    is_call=True     # True for call, False for put
+)
+
+# Calculate Greeks
+delta, gamma, vega, theta, rho = black_scholes_greeks(
+    spot=100.0,
+    strike=100.0,
+    rate=0.05,
+    vol=0.20,
+    expiry=1.0,
+    is_call=True
+)
 ```
-http://127.0.0.1:5000
+
+### Binomial Tree
+
+```python
+from risk_engine.core.binomial import binomial_price
+
+# Price an American option
+price = binomial_price(
+    spot=100.0,
+    strike=100.0,
+    rate=0.05,
+    vol=0.20,
+    expiry=1.0,
+    steps=100,           # Number of tree steps
+    is_call=True,
+    is_american=True     # True for American, False for European
+)
 ```
 
-## Authentication
+### Jump Diffusion (Merton)
 
-Currently no authentication required. For production deployment, implement API keys or OAuth2.
+```python
+from risk_engine.core.jump_diffusion import merton_jump_diffusion_price
 
-## Response Format
+price = merton_jump_diffusion_price(
+    spot=100.0,
+    strike=100.0,
+    rate=0.05,
+    vol=0.20,
+    expiry=1.0,
+    jump_intensity=2.0,  # Jumps per year
+    jump_mean=-0.05,     # Mean jump size
+    jump_vol=0.15,       # Jump volatility
+    is_call=True
+)
+```
 
-All responses are JSON with the following structure:
+## Instruments
 
-**Success:**
-```json
+### European Option
+
+```python
+from risk_engine.instruments.european import EuropeanOption, OptionType
+from risk_engine.market_data.market_data import MarketData
+
+option = EuropeanOption(
+    option_type=OptionType.CALL,
+    strike=100.0,
+    expiry=1.0,
+    asset_id="AAPL"
+)
+
+market_data = MarketData(spot=105.0, rate=0.05, volatility=0.20)
+price = option.price(market_data)
+greeks = option.greeks(market_data)
+```
+
+### American Option
+
+```python
+from risk_engine.instruments.american import AmericanOption, OptionType
+
+option = AmericanOption(
+    option_type=OptionType.PUT,
+    strike=100.0,
+    expiry=1.0,
+    asset_id="AAPL",
+    steps=100
+)
+```
+
+### Asian Option
+
+```python
+from risk_engine.instruments.asian import AsianOption, OptionType
+
+option = AsianOption(
+    option_type=OptionType.CALL,
+    strike=100.0,
+    expiry=1.0,
+    asset_id="AAPL",
+    n_steps=252,          # Averaging points
+    simulations=100000    # Monte Carlo paths
+)
+```
+
+### Barrier Option
+
+```python
+from risk_engine.instruments.barrier import BarrierOption, OptionType, BarrierType
+
+option = BarrierOption(
+    option_type=OptionType.CALL,
+    strike=100.0,
+    expiry=1.0,
+    asset_id="AAPL",
+    barrier=120.0,
+    barrier_type=BarrierType.UP_AND_OUT
+)
+```
+
+## Portfolio
+
+### Creating a Portfolio
+
+```python
+from risk_engine.portfolio.portfolio import Portfolio
+from risk_engine.instruments.european import EuropeanOption, OptionType
+
+portfolio = Portfolio()
+
+# Add instruments
+call = EuropeanOption(OptionType.CALL, strike=100, expiry=1.0, asset_id="AAPL")
+put = EuropeanOption(OptionType.PUT, strike=95, expiry=0.5, asset_id="AAPL")
+
+portfolio.add_instrument(call, quantity=100)   # Long 100 calls
+portfolio.add_instrument(put, quantity=-50)    # Short 50 puts
+
+# Portfolio info
+print(f"Size: {portfolio.size()}")
+print(f"Assets: {portfolio.get_unique_assets()}")
+```
+
+### Portfolio Valuation
+
+```python
+market_data = {"AAPL": MarketData(spot=105, rate=0.05, volatility=0.25)}
+total_pv = portfolio.total_pv(market_data)
+```
+
+## Risk Engine
+
+### Calculate VaR
+
+```python
+from risk_engine.portfolio.risk_engine import RiskEngine
+
+engine = RiskEngine(
+    simulations=100000,
+    confidence_level=0.95
+)
+
+results = engine.calculate_portfolio_risk(
+    portfolio=portfolio,
+    market_data=market_data
+)
+
+print(f"Total PV: ${results['total_pv']:.2f}")
+print(f"VaR 95%: ${results['var_95']:.2f}")
+print(f"VaR 99%: ${results['var_99']:.2f}")
+print(f"CVaR 95%: ${results['cvar_95']:.2f}")
+```
+
+### Results Dictionary
+
+```python
 {
-  "result_field": "value",
-  "...": "..."
+    "total_pv": 12345.67,           # Portfolio present value
+    "total_delta": 0.65,            # Aggregate delta
+    "total_gamma": 0.02,            # Aggregate gamma
+    "total_vega": 456.78,           # Aggregate vega
+    "total_theta": -12.34,          # Aggregate theta
+    "var_95": -5678.90,             # 95% VaR
+    "var_99": -7890.12,             # 99% VaR
+    "cvar_95": -6543.21,            # 95% Expected Shortfall
+    "cvar_99": -8901.23             # 99% Expected Shortfall
 }
 ```
 
-**Error:**
-```json
-{
-  "error": "Error message description"
-}
+## Market Data
+
+### MarketData Class
+
+```python
+from risk_engine.market_data.market_data import MarketData
+
+market_data = MarketData(
+    spot=175.0,          # Current price
+    rate=0.05,           # Risk-free rate
+    volatility=0.25,     # Annualized volatility
+    dividend=0.005       # Dividend yield (optional)
+)
 ```
 
-## Endpoints
+### Fetching from Yahoo Finance
 
-### Health Check
+```python
+from risk_engine.market_data.fetcher import MarketDataFetcher
 
-Check API status and available features.
+fetcher = MarketDataFetcher()
 
-**Request:**
-```http
-GET /health
+# Single ticker
+data = fetcher.fetch_single("AAPL")
+
+# Multiple tickers
+data_dict = fetcher.fetch_multiple(["AAPL", "GOOGL", "MSFT"])
+
+# Force refresh (bypass cache)
+data = fetcher.fetch_single("AAPL", force_refresh=True)
 ```
 
-**Response (200):**
-```json
-{
-  "status": "healthy",
-  "service": "quant-risk-engine",
-  "version": "4.0.0",
-  "features": [
-    "european_options",
-    "american_options",
-    "multiple_pricing_models",
-    "portfolio_analytics",
-    "var_calculation",
-    "live_market_data"
-  ],
-  "cache_info": {
-    "cached_assets": 5,
-    "cache_location": "market_data_cache.db"
-  }
-}
+### Market Data Cache
+
+```python
+from risk_engine.market_data.cache import MarketDataCache
+
+cache = MarketDataCache(db_path="market_data_cache.db")
+
+# Get cached data
+data = cache.get("AAPL")
+
+# Save data
+cache.save("AAPL", market_data_dict)
+
+# Clear cache
+cache.clear()
 ```
 
----
+## Example: Complete Workflow
 
-### Price Single Option
+```python
+from risk_engine.portfolio.portfolio import Portfolio
+from risk_engine.portfolio.risk_engine import RiskEngine
+from risk_engine.instruments.european import EuropeanOption, OptionType
+from risk_engine.market_data.fetcher import MarketDataFetcher
 
-Calculate option price and Greeks for a single instrument.
-
-**Request:**
-```http
-POST /price_option
-Content-Type: application/json
-```
-
-**Body:**
-```json
-{
-  "type": "call",
-  "strike": 100.0,
-  "expiry": 1.0,
-  "asset_id": "AAPL",
-  "style": "european",
-  "pricing_model": "blackscholes",
-  "market_data": {
-    "spot": 105.0,
-    "rate": 0.05,
-    "vol": 0.25,
-    "dividend": 0.01
-  }
-}
-```
-
-**Parameters:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | string | Yes | "call" or "put" |
-| `strike` | float | Yes | Strike price |
-| `expiry` | float | Yes | Time to expiry (years) |
-| `asset_id` | string | Yes | Asset identifier |
-| `style` | string | No | "european" or "american" (default: "european") |
-| `pricing_model` | string | No | "blackscholes", "binomial", "jumpdiffusion" (default: "blackscholes") |
-| `binomial_steps` | int | No | Number of steps for binomial tree (default: 100) |
-| `jump_parameters` | object | No | Jump diffusion parameters (see below) |
-| `market_data` | object | No | If omitted, auto-fetches from cache/YFinance |
-
-**Jump Parameters:**
-```json
-{
-  "lambda": 2.0,    // Jump intensity (jumps per year)
-  "mean": -0.05,    // Mean jump size
-  "vol": 0.15       // Jump size volatility
-}
-```
-
-**Market Data:**
-```json
-{
-  "spot": 105.0,      // Current spot price
-  "rate": 0.05,       // Risk-free rate (annualized)
-  "vol": 0.25,        // Volatility (annualized)
-  "dividend": 0.01    // Dividend yield (optional, default: 0.0)
-}
-```
-
-**Response (200):**
-```json
-{
-  "price": 12.34,
-  "delta": 0.6368,
-  "gamma": 0.0178,
-  "vega": 37.45,
-  "theta": -6.42,
-  "rho": 48.23,
-  "instrument_type": "EuropeanOption",
-  "market_data_auto_fetched": false,
-  "market_data_used": {
-    "spot": 105.0,
-    "rate": 0.05,
-    "vol": 0.25,
-    "dividend": 0.01
-  }
-}
-```
-
-**Errors:**
-- `400`: Validation error (missing fields, invalid values)
-- `500`: Runtime error (pricing calculation failed)
-
----
-
-### Calculate Portfolio Risk
-
-Calculate comprehensive risk metrics for a portfolio of options.
-
-**Request:**
-```http
-POST /calculate_risk
-Content-Type: application/json
-```
-
-**Body:**
-```json
-{
-  "portfolio": [
-    {
-      "type": "call",
-      "strike": 100.0,
-      "expiry": 1.0,
-      "asset_id": "AAPL",
-      "quantity": 100,
-      "style": "european"
-    },
-    {
-      "type": "put",
-      "strike": 95.0,
-      "expiry": 1.0,
-      "asset_id": "AAPL",
-      "quantity": -50,
-      "style": "european"
-    }
-  ],
-  "market_data": {
-    "AAPL": {
-      "spot": 105.0,
-      "rate": 0.05,
-      "vol": 0.25
-    }
-  },
-  "var_parameters": {
-    "simulations": 100000,
-    "confidence": 0.95,
-    "time_horizon": 1.0,
-    "seed": 42
-  }
-}
-```
-
-**Parameters:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `portfolio` | array | Yes | Array of option specifications |
-| `market_data` | object | No | Market data by asset (auto-fetches if missing) |
-| `var_parameters` | object | No | VaR simulation configuration |
-
-**Portfolio Item:**
-```json
-{
-  "type": "call",           // "call" or "put"
-  "strike": 100.0,          // Strike price
-  "expiry": 1.0,            // Time to expiry (years)
-  "asset_id": "AAPL",       // Asset identifier
-  "quantity": 100,          // Position size (positive = long, negative = short)
-  "style": "european",      // "european" or "american"
-  "pricing_model": "blackscholes"  // Optional: pricing model
-}
-```
-
-**VaR Parameters:**
-```json
-{
-  "simulations": 100000,    // Number of Monte Carlo paths (max: 1,000,000)
-  "confidence": 0.95,       // Confidence level (0-1)
-  "time_horizon": 1.0,      // Time horizon in days
-  "seed": 42                // Random seed for reproducibility (optional)
-}
-```
-
-**Response (200):**
-```json
-{
-  "total_pv": 123456.78,
-  "total_delta": 0.6543,
-  "total_gamma": 0.0234,
-  "total_vega": 456.78,
-  "total_theta": -12.34,
-  "value_at_risk_95": -5678.90,
-  "value_at_risk_99": -7890.12,
-  "expected_shortfall_95": -6543.21,
-  "expected_shortfall_99": -8901.23,
-  "portfolio_size": 2,
-  "var_parameters": {
-    "simulations": 100000,
-    "confidence_level": 0.95,
-    "time_horizon_days": 1.0
-  },
-  "market_data_info": {
-    "auto_fetched_assets": [],
-    "market_data_used": {
-      "AAPL": {
-        "spot": 105.0,
-        "rate": 0.05,
-        "vol": 0.25,
-        "dividend": 0.0
-      }
-    }
-  }
-}
-```
-
-**Errors:**
-- `400`: Validation error (invalid portfolio, market data missing)
-- `500`: Runtime error (risk calculation failed)
-
----
-
-### Portfolio Net Position
-
-Get net position for a specific asset across portfolio.
-
-**Request:**
-```http
-POST /portfolio/net_position/<asset_id>
-Content-Type: application/json
-```
-
-**Body:**
-```json
-{
-  "portfolio": [
-    {"type": "call", "strike": 100, "expiry": 1.0, "asset_id": "AAPL", "quantity": 100, "style": "european"},
-    {"type": "put", "strike": 95, "expiry": 1.0, "asset_id": "AAPL", "quantity": -50, "style": "european"}
-  ]
-}
-```
-
-**Response (200):**
-```json
-{
-  "asset_id": "AAPL",
-  "net_quantity": 50,
-  "direction": "long"
-}
-```
-
----
-
-### Portfolio Summary
-
-Get portfolio statistics and composition.
-
-**Request:**
-```http
-POST /portfolio/summary
-Content-Type: application/json
-```
-
-**Body:**
-```json
-{
-  "portfolio": [...]
-}
-```
-
-**Response (200):**
-```json
-{
-  "portfolio_size": 5,
-  "unique_assets": 3,
-  "net_positions": {
-    "AAPL": 100,
-    "GOOGL": -50,
-    "MSFT": 75
-  },
-  "instrument_counts": {
-    "european": 4,
-    "american": 1,
-    "calls": 3,
-    "puts": 2
-  }
-}
-```
-
----
-
-### Update Market Data
-
-Fetch live market data from Yahoo Finance.
-
-**Request:**
-```http
-POST /update_market_data
-Content-Type: application/json
-```
-
-**Body:**
-```json
-{
-  "tickers": ["AAPL", "GOOGL", "MSFT"],
-  "force_refresh": false
-}
-```
-
-**Parameters:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `tickers` | array | Yes | Ticker symbols (max 50) |
-| `force_refresh` | boolean | No | Bypass cache (default: false) |
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "updated": {
-    "AAPL": {
-      "asset_id": "AAPL",
-      "spot": 175.43,
-      "vol": 0.2847,
-      "rate": 0.0445,
-      "dividend": 0.0052,
-      "last_updated": "2025-10-25T14:30:00.123456",
-      "source": "yfinance"
-    }
-  },
-  "failed": [],
-  "summary": {
-    "total_requested": 3,
-    "successful": 3,
-    "failed": 0
-  },
-  "timestamp": "2025-10-25T14:30:00.123456"
-}
-```
-
-**Response (207 Multi-Status):**
-Partial success when some tickers fail:
-```json
-{
-  "success": false,
-  "updated": {...},
-  "failed": [
-    {
-      "ticker": "INVALID",
-      "error": "Failed to fetch data for INVALID: No price data available"
-    }
-  ],
-  "summary": {...}
-}
-```
-
-**Errors:**
-- `400`: Invalid request (empty tickers, too many, invalid format)
-
----
-
-### Get Cached Market Data
-
-Retrieve cached market data without fetching new data.
-
-**Request:**
-```http
-GET /get_cached_market_data?asset_id=AAPL
-```
-
-**Query Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `asset_id` | string | No | Specific asset (omit for all) |
-
-**Response (200):**
-```json
-{
-  "AAPL": {
-    "spot": 175.43,
-    "vol": 0.2847,
-    "rate": 0.0445,
-    "dividend": 0.0052,
-    "last_updated": "2025-10-25T14:30:00.123456",
-    "source": "yfinance"
-  }
-}
-```
-
-**Errors:**
-- `404`: Asset not found in cache
-
----
-
-### Clear Market Data Cache
-
-Delete all cached market data.
-
-**Request:**
-```http
-DELETE /clear_market_data_cache
-```
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "message": "Market data cache cleared",
-  "timestamp": "2025-10-25T14:35:00.123456"
-}
-```
-
----
-
-## Error Handling
-
-All endpoints follow consistent error response format:
-
-**Validation Error (400):**
-```json
-{
-  "error": "Validation error: Portfolio item 0: missing required field 'strike'"
-}
-```
-
-**Runtime Error (500):**
-```json
-{
-  "error": "Runtime error: Risk calculation produced invalid results"
-}
-```
-
-**Not Found (404):**
-```json
-{
-  "error": "Endpoint not found"
-}
-```
-
-## Rate Limiting
-
-Currently no rate limiting. For production deployment:
-- Implement per-IP rate limiting
-- Use Redis for distributed rate limiting
-- Add API keys with tiered limits
-
-## Examples
-
-### Complete Workflow
-
-```bash
 # 1. Fetch market data
-curl -X POST http://127.0.0.1:5000/update_market_data \
-  -H "Content-Type: application/json" \
-  -d '{"tickers": ["AAPL", "GOOGL"]}'
+fetcher = MarketDataFetcher()
+market_data = fetcher.fetch_multiple(["AAPL", "GOOGL"])
 
-# 2. Price single option
-curl -X POST http://127.0.0.1:5000/price_option \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "call",
-    "strike": 180,
-    "expiry": 1.0,
-    "asset_id": "AAPL",
-    "style": "european",
-    "market_data": {}
-  }'
+# 2. Build portfolio
+portfolio = Portfolio()
+portfolio.add_instrument(
+    EuropeanOption(OptionType.CALL, 180, 1.0, "AAPL"), 
+    quantity=100
+)
+portfolio.add_instrument(
+    EuropeanOption(OptionType.PUT, 140, 0.5, "GOOGL"), 
+    quantity=-50
+)
 
-# 3. Calculate portfolio risk
-curl -X POST http://127.0.0.1:5000/calculate_risk \
-  -H "Content-Type: application/json" \
-  -d '{
-    "portfolio": [
-      {"type": "call", "strike": 180, "expiry": 1.0, "asset_id": "AAPL", "quantity": 100, "style": "european"},
-      {"type": "put", "strike": 140, "expiry": 0.5, "asset_id": "GOOGL", "quantity": -50, "style": "european"}
-    ],
-    "market_data": {},
-    "var_parameters": {"simulations": 100000}
-  }'
+# 3. Calculate risk
+engine = RiskEngine(simulations=100000)
+results = engine.calculate_portfolio_risk(portfolio, market_data)
+
+# 4. Display results
+print(f"Portfolio Value: ${results['total_pv']:,.2f}")
+print(f"Delta: {results['total_delta']:.4f}")
+print(f"VaR (95%): ${results['var_95']:,.2f}")
+print(f"Expected Shortfall (95%): ${results['cvar_95']:,.2f}")
 ```
 
-## Client Libraries
+## Version
 
-Coming soon:
-- Python SDK
-- JavaScript/TypeScript SDK
-- R package
-
-## WebSocket Support
-
-Planned for real-time updates:
-- Live portfolio valuations
-- Streaming market data
-- Risk metric updates
-
-See [DEVELOPMENT.md](DEVELOPMENT.md) for contributing to these features.
+Current version: **4.0.0** (Pure Python)

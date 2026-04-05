@@ -4,7 +4,7 @@ Risk engine with Monte Carlo VaR using Numba JIT compilation.
 
 from dataclasses import dataclass
 from math import sqrt, erf
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, Tuple, Optional
 import numpy as np
 from numba import njit, prange
 from risk_engine.instruments.base import Instrument, MarketData

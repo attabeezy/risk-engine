@@ -51,10 +51,6 @@ class Portfolio:
         """Remove all instruments from the portfolio."""
         self._instruments.clear()
 
-    def reserve(self, capacity: int) -> None:
-        """Preallocate space for instruments (optimization)."""
-        self._instruments = []
-
     def get_total_quantity_for_asset(self, asset_id: str) -> int:
         """
         Get total quantity for a specific asset.

@@ -3,7 +3,6 @@ Base instrument class for all derivatives.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from risk_engine.market_data.market_data import MarketData
 

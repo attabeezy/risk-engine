@@ -19,7 +19,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DEFAULT_RISK_FREE_RATE = 0.045
-VOLATILITY_WINDOW_DAYS = 252
 
 
 class MarketDataFetcher:

@@ -6,7 +6,7 @@ Implements the Cox-Ross-Rubinstein (CRR) binomial model for European and America
 
 from math import exp, sqrt
 from enum import Enum
-from typing import List, Tuple
+from typing import List
 
 
 class OptionType(Enum):
@@ -152,65 +152,3 @@ def american_option_price(
             prices[i] = max(hold_value, exercise_value)
 
     return prices[0]
-
-
-def build_tree(
-    spot: float,
-    strike: float,
-    rate: float,
-    time: float,
-    vol: float,
-    option_type: OptionType,
-    steps: int,
-    is_american: bool,
-) -> List[List[Tuple[float, float, bool]]]:
-    """
-    Build a binomial tree for visualization.
-
-    Returns:
-        List of time steps, each containing list of nodes as
-        (stock_price, option_value, is_early_exercise_optimal)
-    """
-    _validate_inputs(spot, strike, rate, time, vol, steps)
-
-    dt = time / steps
-    u = exp(vol * sqrt(dt))
-    d = 1.0 / u
-    p = (exp(rate * dt) - d) / (u - d)
-    discount = exp(-rate * dt)
-
-    tree: List[List[Tuple[float, float, bool]]] = []
-
-    for step in range(steps + 1):
-        nodes = []
-        for i in range(step + 1):
-            stock_price = spot * (u ** (step - i)) * (d**i)
-            nodes.append((stock_price, 0.0, False))
-        tree.append(nodes)
-
-    for i in range(steps + 1):
-        spot_at_maturity = tree[steps][i][0]
-        if option_type == OptionType.CALL:
-            option_value = max(0.0, spot_at_maturity - strike)
-        else:
-            option_value = max(0.0, strike - spot_at_maturity)
-        tree[steps][i] = (spot_at_maturity, option_value, False)
-
-    for step in range(steps - 1, -1, -1):
-        for i in range(step + 1):
-            hold_value = discount * (
-                p * tree[step + 1][i][1] + (1.0 - p) * tree[step + 1][i + 1][1]
-            )
-
-            stock_price = tree[step][i][0]
-            if option_type == OptionType.CALL:
-                exercise_value = max(0.0, stock_price - strike)
-            else:
-                exercise_value = max(0.0, strike - stock_price)
-
-            if is_american and exercise_value > hold_value:
-                tree[step][i] = (stock_price, exercise_value, True)
-            else:
-                tree[step][i] = (stock_price, hold_value, False)
-
-    return tree
