@@ -38,6 +38,7 @@ def european_option_price(
     vol: float,
     option_type: OptionType,
     steps: int = 100,
+    dividend: float = 0.0,
 ) -> float:
     """
     Price a European option using the binomial tree method.
@@ -50,6 +51,7 @@ def european_option_price(
         vol: Volatility (annualized)
         option_type: OptionType.CALL or OptionType.PUT
         steps: Number of time steps (default 100)
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         European option price
@@ -65,7 +67,7 @@ def european_option_price(
     dt = time / steps
     u = exp(vol * sqrt(dt))
     d = 1.0 / u
-    p = (exp(rate * dt) - d) / (u - d)
+    p = (exp((rate - dividend) * dt) - d) / (u - d)
     discount = exp(-rate * dt)
 
     if not 0 <= p <= 1:
@@ -95,6 +97,7 @@ def american_option_price(
     vol: float,
     option_type: OptionType,
     steps: int = 100,
+    dividend: float = 0.0,
 ) -> float:
     """
     Price an American option using the binomial tree method with early exercise.
@@ -107,6 +110,7 @@ def american_option_price(
         vol: Volatility (annualized)
         option_type: OptionType.CALL or OptionType.PUT
         steps: Number of time steps (default 100)
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         American option price
@@ -122,7 +126,7 @@ def american_option_price(
     dt = time / steps
     u = exp(vol * sqrt(dt))
     d = 1.0 / u
-    p = (exp(rate * dt) - d) / (u - d)
+    p = (exp((rate - dividend) * dt) - d) / (u - d)
     discount = exp(-rate * dt)
 
     if not 0 <= p <= 1:

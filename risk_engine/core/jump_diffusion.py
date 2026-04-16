@@ -48,12 +48,13 @@ def merton_call_price(
     jump_mean: float,
     jump_vol: float,
     max_jumps: int = 50,
+    dividend: float = 0.0,
 ) -> float:
     """
     Calculate European call price under Merton jump diffusion model.
 
     The model assumes asset prices follow:
-        dS/S = (r - lambda*k) * dt + sigma * dW + J * dN
+        dS/S = (r - q - lambda*k) * dt + sigma * dW + J * dN
 
     where J ~ lognormal(mean, vol) and N is a Poisson process.
 
@@ -67,6 +68,7 @@ def merton_call_price(
         jump_mean: Mean of log jump size
         jump_vol: Volatility of log jump size
         max_jumps: Maximum number of jumps to sum (default 50)
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Call option price
@@ -104,11 +106,12 @@ def merton_call_price(
 
         r_n = (
             rate
+            - dividend
             - jump_intensity * k
             + n * (jump_mean + 0.5 * jump_vol * jump_vol) / time
         )
 
-        bs_price = bs.call_price(spot, strike, r_n, time, sigma_n)
+        bs_price = bs.call_price(spot, strike, r_n, time, sigma_n, dividend)
 
         option_value += prob * bs_price
 
@@ -131,6 +134,7 @@ def merton_put_price(
     jump_mean: float,
     jump_vol: float,
     max_jumps: int = 50,
+    dividend: float = 0.0,
 ) -> float:
     """
     Calculate European put price under Merton jump diffusion model.
@@ -145,6 +149,7 @@ def merton_put_price(
         jump_mean: Mean of log jump size
         jump_vol: Volatility of log jump size
         max_jumps: Maximum number of jumps to sum (default 50)
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Put option price
@@ -182,11 +187,12 @@ def merton_put_price(
 
         r_n = (
             rate
+            - dividend
             - jump_intensity * k
             + n * (jump_mean + 0.5 * jump_vol * jump_vol) / time
         )
 
-        bs_price = bs.put_price(spot, strike, r_n, time, sigma_n)
+        bs_price = bs.put_price(spot, strike, r_n, time, sigma_n, dividend)
 
         option_value += prob * bs_price
 
@@ -210,6 +216,7 @@ def merton_option_price(
     jump_mean: float = -0.05,
     jump_vol: float = 0.15,
     max_jumps: int = 50,
+    dividend: float = 0.0,
 ) -> float:
     """
     Calculate European option price under Merton jump diffusion model.
@@ -225,6 +232,7 @@ def merton_option_price(
         jump_mean: Mean of log jump size, default -0.05
         jump_vol: Volatility of log jump size, default 0.15
         max_jumps: Maximum number of jumps to sum (default 50)
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Option price
@@ -240,6 +248,7 @@ def merton_option_price(
             jump_mean,
             jump_vol,
             max_jumps,
+            dividend,
         )
     else:
         return merton_put_price(
@@ -252,4 +261,5 @@ def merton_option_price(
             jump_mean,
             jump_vol,
             max_jumps,
+            dividend,
         )

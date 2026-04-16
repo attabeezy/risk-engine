@@ -88,6 +88,92 @@ class MarketDataFetcher:
             logger.error(f"Error fetching data for {ticker}: {str(e)}")
             raise ValueError(f"Failed to fetch data for {ticker}: {str(e)}")
 
+    def fetch_option_chain(self, ticker: str) -> Dict:
+        """
+        Fetch option chain data and compute implied volatilities.
+
+        Returns a dict mapping expiry string -> list of (strike, iv, is_call) tuples.
+        Only includes entries where IV converged successfully.
+        """
+        if not YFINANCE_AVAILABLE:
+            raise ImportError(
+                "yfinance is not installed. Install with: pip install yfinance"
+            )
+
+        from risk_engine.core import blackscholes as bs
+
+        ticker = ticker.upper().strip()
+        stock = yf.Ticker(ticker)
+
+        info = stock.info
+        spot = info.get("currentPrice") or info.get("regularMarketPrice")
+        if not spot:
+            hist = stock.history(period="1d")
+            if hist.empty:
+                raise ValueError(f"No price data for {ticker}")
+            spot = float(hist["Close"].iloc[-1])
+
+        rate = self._get_risk_free_rate()
+        dividend = float(info.get("dividendYield", 0.0) or 0.0)
+
+        expiry_dates = stock.options
+        if not expiry_dates:
+            raise ValueError(f"No option data available for {ticker}")
+
+        from datetime import date as date_cls
+        today = date_cls.today()
+
+        result: Dict = {}
+
+        for expiry_str in expiry_dates[:6]:  # limit to next 6 expiries
+            try:
+                expiry_date = date_cls.fromisoformat(expiry_str)
+                T = (expiry_date - today).days / 365.0
+                if T <= 0:
+                    continue
+
+                chain = stock.option_chain(expiry_str)
+                iv_points = []
+
+                for _, row in chain.calls.iterrows():
+                    strike = float(row["strike"])
+                    mid = None
+                    if row.get("bid") and row.get("ask") and row["bid"] > 0 and row["ask"] > 0:
+                        mid = (float(row["bid"]) + float(row["ask"])) / 2.0
+                    elif row.get("lastPrice") and row["lastPrice"] > 0:
+                        mid = float(row["lastPrice"])
+                    if mid is None or mid <= 0:
+                        continue
+                    try:
+                        iv = bs.implied_volatility(mid, spot, strike, rate, T, True, dividend)
+                        if 0.01 <= iv <= 5.0:
+                            iv_points.append((strike, iv, True))
+                    except Exception:
+                        pass
+
+                for _, row in chain.puts.iterrows():
+                    strike = float(row["strike"])
+                    mid = None
+                    if row.get("bid") and row.get("ask") and row["bid"] > 0 and row["ask"] > 0:
+                        mid = (float(row["bid"]) + float(row["ask"])) / 2.0
+                    elif row.get("lastPrice") and row["lastPrice"] > 0:
+                        mid = float(row["lastPrice"])
+                    if mid is None or mid <= 0:
+                        continue
+                    try:
+                        iv = bs.implied_volatility(mid, spot, strike, rate, T, False, dividend)
+                        if 0.01 <= iv <= 5.0:
+                            iv_points.append((strike, iv, False))
+                    except Exception:
+                        pass
+
+                if iv_points:
+                    result[expiry_str] = {"T": T, "points": iv_points}
+            except Exception as e:
+                logger.warning(f"Failed option chain for {ticker} expiry {expiry_str}: {e}")
+
+        return result
+
     def fetch_multiple(
         self, tickers: List[str], force_refresh: bool = False
     ) -> Tuple[Dict, List]:

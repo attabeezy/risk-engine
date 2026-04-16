@@ -283,9 +283,38 @@ elif page == "Risk Analysis":
         st.divider()
         st.subheader("VaR Distribution")
 
-        st.info(
-            "Monte Carlo VaR simulation data is available. View detailed risk metrics above."
-        )
+        if result.pnl_distribution is not None:
+            fig_pnl = go.Figure()
+            fig_pnl.add_trace(
+                go.Histogram(
+                    x=result.pnl_distribution,
+                    nbinsx=80,
+                    name="P&L",
+                    marker_color="#636EFA",
+                    opacity=0.75,
+                )
+            )
+            fig_pnl.add_vline(
+                x=-result.value_at_risk_95,
+                line_dash="dash",
+                line_color="orange",
+                annotation_text=f"VaR 95% (${result.value_at_risk_95:,.0f})",
+                annotation_position="top right",
+            )
+            fig_pnl.add_vline(
+                x=-result.value_at_risk_99,
+                line_dash="dash",
+                line_color="red",
+                annotation_text=f"VaR 99% (${result.value_at_risk_99:,.0f})",
+                annotation_position="top left",
+            )
+            fig_pnl.update_layout(
+                title="Monte Carlo P&L Distribution",
+                xaxis_title="P&L ($)",
+                yaxis_title="Frequency",
+                bargap=0.05,
+            )
+            st.plotly_chart(fig_pnl, width="stretch")
 
 elif page == "Market Data":
     st.header("Market Data")
@@ -650,31 +679,52 @@ elif page == "Greeks Analysis":
                 st.divider()
                 st.subheader("Implied Volatility Surface")
 
-                vol_grid = np.zeros((len(expiries), len(strikes)))
-                for i, exp in enumerate(expiries):
-                    for j, strike in enumerate(strikes):
-                        moneyness = strike / md.spot
-                        vol_grid[i, j] = md.vol * (1 + 0.2 * (moneyness - 1))
+                with st.spinner(f"Fetching option chain for {selected_asset}..."):
+                    try:
+                        fetcher = get_market_data_fetcher()
+                        chain_data = fetcher.fetch_option_chain(selected_asset)
 
-                fig_3d = go.Figure(
-                    data=go.Surface(
-                        z=vol_grid,
-                        x=strikes,
-                        y=expiries,
-                        colorscale="Viridis",
-                        colorbar_title="IV",
-                    )
-                )
-                fig_3d.update_layout(
-                    title="Implied Volatility Surface",
-                    scene=dict(
-                        xaxis_title="Strike",
-                        yaxis_title="Expiry (years)",
-                        zaxis_title="Volatility",
-                    ),
-                    height=500,
-                )
-                st.plotly_chart(fig_3d, width="stretch")
+                        if chain_data:
+                            iv_strikes, iv_expiries, iv_vals = [], [], []
+                            for expiry_str, expiry_info in chain_data.items():
+                                T_val = expiry_info["T"]
+                                for strike_val, iv_val, _ in expiry_info["points"]:
+                                    iv_strikes.append(strike_val)
+                                    iv_expiries.append(T_val)
+                                    iv_vals.append(iv_val)
+
+                            fig_3d = go.Figure(
+                                data=go.Scatter3d(
+                                    x=iv_strikes,
+                                    y=iv_expiries,
+                                    z=iv_vals,
+                                    mode="markers",
+                                    marker=dict(
+                                        size=3,
+                                        color=iv_vals,
+                                        colorscale="Viridis",
+                                        colorbar=dict(title="IV"),
+                                        opacity=0.8,
+                                    ),
+                                )
+                            )
+                            fig_3d.update_layout(
+                                title=f"Implied Volatility Surface — {selected_asset}",
+                                scene=dict(
+                                    xaxis_title="Strike ($)",
+                                    yaxis_title="Expiry (years)",
+                                    zaxis_title="Implied Vol",
+                                ),
+                                height=550,
+                            )
+                            st.plotly_chart(fig_3d, width="stretch")
+                            st.caption(f"Data points: {len(iv_vals)} across {len(chain_data)} expiries")
+                        else:
+                            st.warning(f"No option chain data returned for {selected_asset}")
+                    except ImportError:
+                        st.warning("yfinance not available — cannot fetch option chains")
+                    except Exception as e:
+                        st.error(f"Failed to fetch option chain: {e}")
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Risk Engine v4.0 | Pure Python")

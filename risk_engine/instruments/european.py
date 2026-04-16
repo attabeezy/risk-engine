@@ -110,11 +110,11 @@ class EuropeanOption(Instrument):
         if self.pricing_model == PricingModel.BLACKSCHOLES:
             if is_call:
                 return bs.call_price(
-                    md.spot, self.strike, md.rate, self.time_to_expiry, md.vol
+                    md.spot, self.strike, md.rate, self.time_to_expiry, md.vol, md.dividend
                 )
             else:
                 return bs.put_price(
-                    md.spot, self.strike, md.rate, self.time_to_expiry, md.vol
+                    md.spot, self.strike, md.rate, self.time_to_expiry, md.vol, md.dividend
                 )
 
         elif self.pricing_model == PricingModel.BINOMIAL:
@@ -127,6 +127,7 @@ class EuropeanOption(Instrument):
                 md.vol,
                 opt_type,
                 self.binomial_steps,
+                md.dividend,
             )
 
         else:  # Merton Jump Diffusion
@@ -140,6 +141,7 @@ class EuropeanOption(Instrument):
                 self.jump_intensity,
                 self.jump_mean,
                 self.jump_vol,
+                dividend=md.dividend,
             )
 
     def delta(self, md: MarketData) -> float:
@@ -150,11 +152,11 @@ class EuropeanOption(Instrument):
             is_call = self.option_type == OptionType.CALL
             if is_call:
                 return bs.call_delta(
-                    md.spot, self.strike, md.rate, self.time_to_expiry, md.vol
+                    md.spot, self.strike, md.rate, self.time_to_expiry, md.vol, md.dividend
                 )
             else:
                 return bs.put_delta(
-                    md.spot, self.strike, md.rate, self.time_to_expiry, md.vol
+                    md.spot, self.strike, md.rate, self.time_to_expiry, md.vol, md.dividend
                 )
         else:
             return self._numerical_derivative(self.price, md)
@@ -164,7 +166,7 @@ class EuropeanOption(Instrument):
         self._validate_market_data(md)
 
         if self.pricing_model == PricingModel.BLACKSCHOLES:
-            return bs.gamma(md.spot, self.strike, md.rate, self.time_to_expiry, md.vol)
+            return bs.gamma(md.spot, self.strike, md.rate, self.time_to_expiry, md.vol, md.dividend)
         else:
             bump = md.spot * 0.01
 
@@ -191,7 +193,7 @@ class EuropeanOption(Instrument):
         self._validate_market_data(md)
 
         if self.pricing_model == PricingModel.BLACKSCHOLES:
-            return bs.vega(md.spot, self.strike, md.rate, self.time_to_expiry, md.vol)
+            return bs.vega(md.spot, self.strike, md.rate, self.time_to_expiry, md.vol, md.dividend)
         else:
             bump = 0.01
 
@@ -221,11 +223,11 @@ class EuropeanOption(Instrument):
             is_call = self.option_type == OptionType.CALL
             if is_call:
                 return bs.call_theta(
-                    md.spot, self.strike, md.rate, self.time_to_expiry, md.vol
+                    md.spot, self.strike, md.rate, self.time_to_expiry, md.vol, md.dividend
                 )
             else:
                 return bs.put_theta(
-                    md.spot, self.strike, md.rate, self.time_to_expiry, md.vol
+                    md.spot, self.strike, md.rate, self.time_to_expiry, md.vol, md.dividend
                 )
         else:
             bump = 1.0 / 365.0

@@ -17,14 +17,14 @@ def _norm_pdf(x: float) -> float:
     return exp(-0.5 * x * x) / sqrt(2.0 * pi)
 
 
-def _d1(spot: float, strike: float, rate: float, time: float, vol: float) -> float:
+def _d1(spot: float, strike: float, rate: float, time: float, vol: float, dividend: float = 0.0) -> float:
     """Calculate d1 for Black-Scholes formula."""
-    return (log(spot / strike) + (rate + 0.5 * vol * vol) * time) / (vol * sqrt(time))
+    return (log(spot / strike) + (rate - dividend + 0.5 * vol * vol) * time) / (vol * sqrt(time))
 
 
-def _d2(spot: float, strike: float, rate: float, time: float, vol: float) -> float:
+def _d2(spot: float, strike: float, rate: float, time: float, vol: float, dividend: float = 0.0) -> float:
     """Calculate d2 for Black-Scholes formula."""
-    return _d1(spot, strike, rate, time, vol) - vol * sqrt(time)
+    return _d1(spot, strike, rate, time, vol, dividend) - vol * sqrt(time)
 
 
 def _validate_inputs(
@@ -50,7 +50,7 @@ def _validate_inputs(
 
 
 def call_price(
-    spot: float, strike: float, rate: float, time: float, vol: float
+    spot: float, strike: float, rate: float, time: float, vol: float, dividend: float = 0.0
 ) -> float:
     """
     Calculate European call option price using Black-Scholes.
@@ -61,6 +61,7 @@ def call_price(
         rate: Risk-free interest rate (annualized)
         time: Time to expiry in years
         vol: Volatility (annualized)
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Call option price
@@ -70,14 +71,14 @@ def call_price(
     if time <= 0 or vol <= 0:
         return max(0.0, spot - strike)
 
-    d1 = _d1(spot, strike, rate, time, vol)
-    d2 = _d2(spot, strike, rate, time, vol)
+    d1 = _d1(spot, strike, rate, time, vol, dividend)
+    d2 = _d2(spot, strike, rate, time, vol, dividend)
 
-    return spot * _norm_cdf(d1) - strike * exp(-rate * time) * _norm_cdf(d2)
+    return spot * exp(-dividend * time) * _norm_cdf(d1) - strike * exp(-rate * time) * _norm_cdf(d2)
 
 
 def put_price(
-    spot: float, strike: float, rate: float, time: float, vol: float
+    spot: float, strike: float, rate: float, time: float, vol: float, dividend: float = 0.0
 ) -> float:
     """
     Calculate European put option price using Black-Scholes.
@@ -88,6 +89,7 @@ def put_price(
         rate: Risk-free interest rate (annualized)
         time: Time to expiry in years
         vol: Volatility (annualized)
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Put option price
@@ -97,14 +99,14 @@ def put_price(
     if time <= 0 or vol <= 0:
         return max(0.0, strike - spot)
 
-    d1 = _d1(spot, strike, rate, time, vol)
-    d2 = _d2(spot, strike, rate, time, vol)
+    d1 = _d1(spot, strike, rate, time, vol, dividend)
+    d2 = _d2(spot, strike, rate, time, vol, dividend)
 
-    return strike * exp(-rate * time) * _norm_cdf(-d2) - spot * _norm_cdf(-d1)
+    return strike * exp(-rate * time) * _norm_cdf(-d2) - spot * exp(-dividend * time) * _norm_cdf(-d1)
 
 
 def call_delta(
-    spot: float, strike: float, rate: float, time: float, vol: float
+    spot: float, strike: float, rate: float, time: float, vol: float, dividend: float = 0.0
 ) -> float:
     """
     Calculate call option delta (sensitivity to spot price).
@@ -115,6 +117,7 @@ def call_delta(
         rate: Risk-free interest rate
         time: Time to expiry in years
         vol: Volatility
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Call delta (between 0 and 1)
@@ -124,12 +127,12 @@ def call_delta(
     if time <= 0 or vol <= 0:
         return 1.0 if spot > strike else 0.0
 
-    d1 = _d1(spot, strike, rate, time, vol)
-    return _norm_cdf(d1)
+    d1 = _d1(spot, strike, rate, time, vol, dividend)
+    return exp(-dividend * time) * _norm_cdf(d1)
 
 
 def put_delta(
-    spot: float, strike: float, rate: float, time: float, vol: float
+    spot: float, strike: float, rate: float, time: float, vol: float, dividend: float = 0.0
 ) -> float:
     """
     Calculate put option delta (sensitivity to spot price).
@@ -140,6 +143,7 @@ def put_delta(
         rate: Risk-free interest rate
         time: Time to expiry in years
         vol: Volatility
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Put delta (between -1 and 0)
@@ -149,11 +153,11 @@ def put_delta(
     if time <= 0 or vol <= 0:
         return -1.0 if spot < strike else 0.0
 
-    d1 = _d1(spot, strike, rate, time, vol)
-    return _norm_cdf(d1) - 1.0
+    d1 = _d1(spot, strike, rate, time, vol, dividend)
+    return exp(-dividend * time) * (_norm_cdf(d1) - 1.0)
 
 
-def gamma(spot: float, strike: float, rate: float, time: float, vol: float) -> float:
+def gamma(spot: float, strike: float, rate: float, time: float, vol: float, dividend: float = 0.0) -> float:
     """
     Calculate option gamma (second derivative to spot price).
 
@@ -165,6 +169,7 @@ def gamma(spot: float, strike: float, rate: float, time: float, vol: float) -> f
         rate: Risk-free interest rate
         time: Time to expiry in years
         vol: Volatility
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Option gamma
@@ -174,11 +179,11 @@ def gamma(spot: float, strike: float, rate: float, time: float, vol: float) -> f
     if time <= 0 or vol <= 0:
         return 0.0
 
-    d1 = _d1(spot, strike, rate, time, vol)
-    return _norm_pdf(d1) / (spot * vol * sqrt(time))
+    d1 = _d1(spot, strike, rate, time, vol, dividend)
+    return exp(-dividend * time) * _norm_pdf(d1) / (spot * vol * sqrt(time))
 
 
-def vega(spot: float, strike: float, rate: float, time: float, vol: float) -> float:
+def vega(spot: float, strike: float, rate: float, time: float, vol: float, dividend: float = 0.0) -> float:
     """
     Calculate option vega (sensitivity to volatility).
 
@@ -190,6 +195,7 @@ def vega(spot: float, strike: float, rate: float, time: float, vol: float) -> fl
         rate: Risk-free interest rate
         time: Time to expiry in years
         vol: Volatility
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Option vega (per 1% change in volatility)
@@ -199,12 +205,12 @@ def vega(spot: float, strike: float, rate: float, time: float, vol: float) -> fl
     if time <= 0 or vol <= 0:
         return 0.0
 
-    d1 = _d1(spot, strike, rate, time, vol)
-    return spot * _norm_pdf(d1) * sqrt(time)
+    d1 = _d1(spot, strike, rate, time, vol, dividend)
+    return spot * exp(-dividend * time) * _norm_pdf(d1) * sqrt(time)
 
 
 def call_theta(
-    spot: float, strike: float, rate: float, time: float, vol: float
+    spot: float, strike: float, rate: float, time: float, vol: float, dividend: float = 0.0
 ) -> float:
     """
     Calculate call option theta (time decay per day).
@@ -215,6 +221,7 @@ def call_theta(
         rate: Risk-free interest rate
         time: Time to expiry in years
         vol: Volatility
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Call theta (per day)
@@ -224,17 +231,18 @@ def call_theta(
     if time <= 0 or vol <= 0:
         return 0.0
 
-    d1 = _d1(spot, strike, rate, time, vol)
-    d2 = _d2(spot, strike, rate, time, vol)
+    d1 = _d1(spot, strike, rate, time, vol, dividend)
+    d2 = _d2(spot, strike, rate, time, vol, dividend)
 
-    term1 = -(spot * _norm_pdf(d1) * vol) / (2.0 * sqrt(time))
+    term1 = -(spot * exp(-dividend * time) * _norm_pdf(d1) * vol) / (2.0 * sqrt(time))
     term2 = rate * strike * exp(-rate * time) * _norm_cdf(d2)
+    term3 = dividend * spot * exp(-dividend * time) * _norm_cdf(d1)
 
-    return (term1 - term2) / 365.0
+    return (term1 - term2 + term3) / 365.0
 
 
 def put_theta(
-    spot: float, strike: float, rate: float, time: float, vol: float
+    spot: float, strike: float, rate: float, time: float, vol: float, dividend: float = 0.0
 ) -> float:
     """
     Calculate put option theta (time decay per day).
@@ -245,6 +253,7 @@ def put_theta(
         rate: Risk-free interest rate
         time: Time to expiry in years
         vol: Volatility
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Put theta (per day)
@@ -254,16 +263,17 @@ def put_theta(
     if time <= 0 or vol <= 0:
         return 0.0
 
-    d1 = _d1(spot, strike, rate, time, vol)
-    d2 = _d2(spot, strike, rate, time, vol)
+    d1 = _d1(spot, strike, rate, time, vol, dividend)
+    d2 = _d2(spot, strike, rate, time, vol, dividend)
 
-    term1 = -(spot * _norm_pdf(d1) * vol) / (2.0 * sqrt(time))
+    term1 = -(spot * exp(-dividend * time) * _norm_pdf(d1) * vol) / (2.0 * sqrt(time))
     term2 = rate * strike * exp(-rate * time) * _norm_cdf(-d2)
+    term3 = dividend * spot * exp(-dividend * time) * _norm_cdf(-d1)
 
-    return (term1 + term2) / 365.0
+    return (term1 + term2 - term3) / 365.0
 
 
-def call_rho(spot: float, strike: float, rate: float, time: float, vol: float) -> float:
+def call_rho(spot: float, strike: float, rate: float, time: float, vol: float, dividend: float = 0.0) -> float:
     """
     Calculate call option rho (sensitivity to interest rate).
 
@@ -273,6 +283,7 @@ def call_rho(spot: float, strike: float, rate: float, time: float, vol: float) -
         rate: Risk-free interest rate
         time: Time to expiry in years
         vol: Volatility
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Call rho (per 1% change in rate)
@@ -282,11 +293,11 @@ def call_rho(spot: float, strike: float, rate: float, time: float, vol: float) -
     if time <= 0:
         return 0.0
 
-    d2 = _d2(spot, strike, rate, time, vol)
+    d2 = _d2(spot, strike, rate, time, vol, dividend)
     return strike * time * exp(-rate * time) * _norm_cdf(d2) / 100.0
 
 
-def put_rho(spot: float, strike: float, rate: float, time: float, vol: float) -> float:
+def put_rho(spot: float, strike: float, rate: float, time: float, vol: float, dividend: float = 0.0) -> float:
     """
     Calculate put option rho (sensitivity to interest rate).
 
@@ -296,6 +307,7 @@ def put_rho(spot: float, strike: float, rate: float, time: float, vol: float) ->
         rate: Risk-free interest rate
         time: Time to expiry in years
         vol: Volatility
+        dividend: Continuous dividend yield (annualized, default 0)
 
     Returns:
         Put rho (per 1% change in rate)
@@ -305,7 +317,7 @@ def put_rho(spot: float, strike: float, rate: float, time: float, vol: float) ->
     if time <= 0:
         return 0.0
 
-    d2 = _d2(spot, strike, rate, time, vol)
+    d2 = _d2(spot, strike, rate, time, vol, dividend)
     return -strike * time * exp(-rate * time) * _norm_cdf(-d2) / 100.0
 
 
@@ -316,6 +328,7 @@ def implied_volatility(
     rate: float,
     time: float,
     is_call: bool,
+    dividend: float = 0.0,
     initial_guess: float = 0.3,
     tolerance: float = 1e-6,
     max_iterations: int = 100,
@@ -330,6 +343,7 @@ def implied_volatility(
         rate: Risk-free interest rate
         time: Time to expiry in years
         is_call: True for call, False for put
+        dividend: Continuous dividend yield (annualized, default 0)
         initial_guess: Starting volatility guess
         tolerance: Convergence tolerance
         max_iterations: Maximum iterations
@@ -355,11 +369,10 @@ def implied_volatility(
         )
 
     sigma = initial_guess
-    price_func = call_price if is_call else put_price
 
     for _ in range(max_iterations):
         try:
-            price = price_func(spot, strike, rate, time, sigma)
+            price = call_price(spot, strike, rate, time, sigma, dividend) if is_call else put_price(spot, strike, rate, time, sigma, dividend)
         except Exception:
             raise RuntimeError("Failed to calculate option price during IV search")
 
@@ -368,7 +381,7 @@ def implied_volatility(
         if abs(diff) < tolerance:
             return sigma
 
-        v = vega(spot, strike, rate, time, sigma)
+        v = vega(spot, strike, rate, time, sigma, dividend)
 
         if v < 1e-10:
             raise RuntimeError("Vega too small for Newton-Raphson")

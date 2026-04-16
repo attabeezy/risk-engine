@@ -25,6 +25,7 @@ class PortfolioRiskResult:
     expected_shortfall_95: float = 0.0
     expected_shortfall_99: float = 0.0
     portfolio_size: int = 0
+    pnl_distribution: np.ndarray = None
 
     def is_valid(self) -> bool:
         """Check if all values are finite."""
@@ -208,7 +209,8 @@ class RiskEngine:
         if not result.is_valid():
             raise RuntimeError("Portfolio risk calculation produced invalid results")
 
-        var_result = self._calculate_var_monte_carlo(portfolio, market_data_map)
+        pnl, var_result = self._calculate_var_monte_carlo(portfolio, market_data_map)
+        result.pnl_distribution = pnl
         result.value_at_risk_95 = var_result[0]
         result.value_at_risk_99 = var_result[1]
         result.expected_shortfall_95 = var_result[2]
@@ -249,9 +251,13 @@ class RiskEngine:
             strikes[i] = getattr(instrument, "strike", 0)
             times[i] = getattr(instrument, "time_to_expiry", 1.0)
 
-            option_types[i] = 1.0
-            is_americans[i] = 0.0
-            binomial_steps_arr[i] = 100.0
+            opt_type_attr = getattr(instrument, "option_type", None)
+            if opt_type_attr is not None:
+                option_types[i] = 1.0 if opt_type_attr.value == "call" else 0.0
+            else:
+                option_types[i] = 1.0
+            is_americans[i] = 1.0 if instrument.get_instrument_type() == "AmericanOption" else 0.0
+            binomial_steps_arr[i] = float(getattr(instrument, "binomial_steps", 100))
 
             initial_pv += instrument.price(md) * quantity
 
@@ -277,4 +283,4 @@ class RiskEngine:
             seed,
         )
 
-        return _calculate_var_metrics(pnl, n_sims)
+        return pnl, _calculate_var_metrics(pnl, n_sims)

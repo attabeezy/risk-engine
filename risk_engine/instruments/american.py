@@ -80,6 +80,7 @@ class AmericanOption(Instrument):
             md.vol,
             self.option_type,
             self.binomial_steps,
+            md.dividend,
         )
 
     def delta(self, md: MarketData) -> float:
