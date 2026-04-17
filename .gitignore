@@ -33,3 +33,4 @@ desktop.ini
 *.db
 .cache/
 .ruff_cache/
+.claude/
